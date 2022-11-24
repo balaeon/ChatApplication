@@ -1,0 +1,57 @@
+package com.balaeon.groupchat.ui.channel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import io.getstream.chat.android.client.ChatClient
+import io.getstream.chat.android.client.call.await
+import io.getstream.chat.android.client.models.User
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import java.util.*
+import javax.inject.Inject
+
+@HiltViewModel
+class ChannelViewModel @Inject constructor(
+    private val client: ChatClient
+) : ViewModel(){
+
+     private val _channelEvent= MutableSharedFlow<CreateChannelEvent>()
+     val channelEvent=_channelEvent.asSharedFlow()
+    fun createChannel(channelName:String)
+    {
+        val trimChannelName=channelName.trim()
+
+        viewModelScope.launch {
+            if (trimChannelName.isEmpty())
+            {
+                _channelEvent.emit(CreateChannelEvent.Error("The channel name is not Empty!"))
+                return@launch
+            }
+            val result=client.channel("messaging", UUID.randomUUID().toString())
+                .create(mapOf("name" to trimChannelName,)).await()
+            if (result.isError)
+            {
+                _channelEvent.emit(CreateChannelEvent.Error(result.error().message?:"Unknown Error"))
+                return@launch
+            }
+            _channelEvent.emit(CreateChannelEvent.Success)
+        }
+    }
+
+    fun logout()
+    {
+        client.disconnect()
+    }
+
+    fun getUser(): User?
+    {
+        return client.getCurrentUser()
+    }
+
+    sealed class CreateChannelEvent{
+        data class Error(val error:String) : CreateChannelEvent()
+        object Success : CreateChannelEvent()
+    }
+}
